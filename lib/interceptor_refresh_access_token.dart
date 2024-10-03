@@ -8,17 +8,17 @@ class TokenInterceptor extends Interceptor {
   @override
   Future onRequest(
       RequestOptions options, RequestInterceptorHandler handler) async {
-    // إضافة الـ Access Token  الهيدر قبل إرسال كل طلب
+    // add access token to the header before sending each request
     String accessToken = 'current_access_token';
     options.headers["Authorization"] = "Bearer $accessToken";
-    return handler.next(options); // استكمال الطلب
+    return handler.next(options);
   }
 
   @override
   Future onError(DioException err, ErrorInterceptorHandler handler) async {
-    // إذا كانت الاستجابة خطأ 401 (غير مصرح)
+    // if the response error is 401 (no authorized)
     if (err.response?.statusCode == 401) {
-      // Access Token طلب تجديد الـ  Refresh Token باستخدام الـ 
+      // using refresh token ask for new access token
       try {
         String refreshToken = 'current_refresh_token';
         Response refreshResponse =
@@ -27,13 +27,13 @@ class TokenInterceptor extends Interceptor {
         });
 
         if (refreshResponse.statusCode == 200) {
-          //الجديد Access Token  الحصول على الـ
+          // getting new access token
           String newAccessToken = refreshResponse.data['access_token'];
 
-          // تحديث التوكن في الهيدر لكل الطلبات المستقبلية
+          // update access token from the header for all coming requests
           dio.options.headers["Authorization"] = "Bearer $newAccessToken";
 
-          // إعادة إرسال الطلب الذي فشل بسبب انتهاء صلاحية التوكن
+          // resend the failed request due to the token expiration
           final retryOptions = err.requestOptions;
           retryOptions.headers["Authorization"] = "Bearer $newAccessToken";
           final retryResponse = await dio.request(
@@ -43,8 +43,8 @@ class TokenInterceptor extends Interceptor {
               headers: retryOptions.headers,
             ),
           );
-
-          return handler.resolve(retryResponse); // إرجاع الاستجابة الجديدة
+          // return the new response
+          return handler.resolve(retryResponse);
         } else {
           return handler.reject(DioException(
               requestOptions: err.requestOptions,
@@ -56,15 +56,13 @@ class TokenInterceptor extends Interceptor {
             error: 'Failed to refresh token'));
       }
     }
-
-    return handler.next(err); // استكمال التعامل مع الخطأ إذا لم يكن 401
+    //  Complete error handling if you do not have a 401
+    return handler.next(err);
   }
 }
 
 void main() {
   Dio dio = Dio();
-  // إضافة الـ Interceptor إلى Dio
+  // add Interceptor to the dio
   dio.interceptors.add(TokenInterceptor(dio));
 }
-
-
